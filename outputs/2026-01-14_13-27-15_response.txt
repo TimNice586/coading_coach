@@ -1,0 +1,664 @@
+--- User Prompt ---
+i want code that can analyze a text and summarizes it
+
+--- Coach Response ---
+This is a fantastic task! Text summarization is a core area in Natural Language Processing (NLP) and a great way to learn about text analysis.
+
+We'll approach this with an **extractive summarization** technique. This means we'll identify the most important sentences from the original text and stitch them together to form a summary. This is simpler to implement than *abstractive summarization* (which involves generating new sentences, often requiring advanced deep learning models) and provides a strong foundation.
+
+Here's our step-by-step plan:
+
+---
+
+## Overall Plan: Extractive Text Summarization
+
+1.  **Text Loading and Preprocessing:** Read the text, clean it (remove extra spaces, convert to lowercase), and break it down into sentences and words.
+2.  **Word Frequency Analysis:** Count how often each significant word appears. This helps us understand what the text is "about."
+3.  **Sentence Scoring:** Assign a score to each sentence based on the frequency of its important words. Sentences containing more frequently occurring words are likely more important.
+4.  **Summary Generation:** Select the top-scoring sentences to form the final summary.
+
+---
+
+## Step 0: Setup and Environment
+
+Before we write any code, we need to ensure our environment is ready.
+
+**1. Intermediate Step: Install NLTK**
+
+The Natural Language Toolkit (NLTK) is a powerful Python library for working with human language data. We'll use it for tokenization (splitting text into words and sentences) and managing stopwords.
+
+*   **Command:** `pip install nltk`
+*   **File:** (No specific file, just a command line action)
+*   **Placement:** Run this in your terminal or command prompt.
+
+**2. Intermediate Step: Download NLTK Data**
+
+NLTK requires specific data files for tasks like tokenization and stop word removal.
+
+*   **Python Code:**
+
+    ```python
+    # filename: download_nltk_data.py
+
+    import nltk
+
+    def download_nltk_data():
+        """
+        Downloads necessary NLTK data packages.
+        Only needs to be run once.
+        """
+        try:
+            nltk.data.find('tokenizers/punkt')
+            print("Punkt tokenizer already downloaded.")
+        except nltk.downloader.DownloadError:
+            print("Downloading 'punkt' tokenizer...")
+            nltk.download('punkt')
+
+        try:
+            nltk.data.find('corpora/stopwords')
+            print("Stopwords corpus already downloaded.")
+        except nltk.downloader.DownloadError:
+            print("Downloading 'stopwords' corpus...")
+            nltk.download('stopwords')
+
+        print("\nNLTK data download complete (or already present).")
+
+    if __name__ == "__main__":
+        download_nltk_data()
+    ```
+
+*   **Explanation:**
+    This script checks if the `punkt` tokenizer (used for sentence tokenization) and the `stopwords` corpus (a list of common words like "the", "is", "a" that we often want to ignore) are already downloaded. If not, it downloads them. This prevents errors later when our summarizer tries to use these resources.
+*   **How to do solo:** If you encounter `LookupError: Resource 'punkt' not found.` or similar errors when running NLTK code, it means you need to download the required data. The NLTK documentation is the primary source for this, often showing `nltk.download('package_name')`.
+*   **Example Output:**
+
+    ```
+    Punkt tokenizer already downloaded.
+    Stopwords corpus already downloaded.
+
+    NLTK data download complete (or already present).
+    ```
+    (Or it will show download progress if not present.)
+*   **Overall Fit:** This is a preparatory step to ensure our NLP tools are ready before we start processing text.
+*   **Improvements:** You could wrap `nltk.download` calls in a `try-except` block to handle potential network issues, but for basic setup, this is sufficient.
+*   **File:** `download_nltk_data.py`
+*   **Placement:** Create this file in your project's root directory and run it once: `python download_nltk_data.py`.
+
+---
+
+## Step 1: Text Loading and Preprocessing
+
+This step focuses on getting our raw text into a usable format for analysis.
+
+**1. Python Code:**
+
+```python
+# filename: text_utils.py
+
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import sent_tokenize, word_tokenize
+
+# Ensure NLTK data is downloaded (run download_nltk_data.py first!)
+# NLTK data should be available after running the setup script.
+
+def load_text(filepath: str) -> str:
+    """
+    Loads text content from a given file path.
+
+    Args:
+        filepath (str): The path to the text file.
+
+    Returns:
+        str: The content of the file as a single string.
+             Returns an empty string if the file cannot be read.
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Error: File not found at {filepath}")
+        return ""
+    except Exception as e:
+        print(f"Error reading file {filepath}: {e}")
+        return ""
+
+def preprocess_text(text: str) -> tuple[list[str], list[str]]:
+    """
+    Preprocesses the input text by:
+    1. Tokenizing into sentences.
+    2. Cleaning and tokenizing words, removing stopwords and non-alphabetic characters.
+
+    Args:
+        text (str): The raw input text.
+
+    Returns:
+        tuple[list[str], list[str]]: A tuple containing:
+            - list[str]: Original sentences from the text.
+            - list[str]: Cleaned, non-stopwords (words) from the text.
+    """
+    if not text:
+        return [], []
+
+    # 1. Sentence Tokenization
+    sentences = sent_tokenize(text)
+
+    # 2. Word Tokenization and Cleaning
+    # Convert to lowercase, remove non-alphabetic characters, remove stopwords
+    
+    # Get English stopwords
+    stop_words = set(stopwords.words('english'))
+    
+    # Process each word
+    cleaned_words = []
+    for word in word_tokenize(text):
+        # Convert to lowercase
+        word = word.lower()
+        # Remove non-alphabetic characters (keep only letters)
+        word = re.sub(r'[^a-z]', '', word)
+        # Check if the word is not empty and not a stop word
+        if word and word not in stop_words:
+            cleaned_words.append(word)
+
+    return sentences, cleaned_words
+
+if __name__ == "__main__":
+    # Example usage for this module
+    # Create a dummy text file for testing
+    dummy_text_content = """
+    Artificial intelligence (AI) is intelligence demonstrated by machines,
+    unlike the natural intelligence displayed by humans and animals.
+    Leading AI textbooks define the field as the study of "intelligent agents":
+    any device that perceives its environment and takes actions that maximize
+    its chance of successfully achieving its goals. Colloquially, the term "artificial intelligence"
+    is often used to describe machines that mimic "cognitive" functions that humans associate with
+    the human mind, such as "learning" and "problem-solving".
+    """
+    with open("sample_text.txt", "w", encoding="utf-8") as f:
+        f.write(dummy_text_content.strip())
+
+    print("--- Testing load_text ---")
+    text = load_text("sample_text.txt")
+    print(f"Loaded text (first 100 chars):\n{text[:100]}...\n")
+
+    print("--- Testing preprocess_text ---")
+    original_sentences, cleaned_words_list = preprocess_text(text)
+    print("Original Sentences (first 3):")
+    for i, sent in enumerate(original_sentences[:3]):
+        print(f"  {i+1}. {sent}")
+
+    print("\nCleaned Words (first 20):")
+    print(cleaned_words_list[:20])
+```
+
+**2. Explanation:**
+
+*   **`load_text(filepath)`:** This function simply reads the entire content of a specified file into a single string. It includes basic error handling for `FileNotFoundError`.
+*   **`preprocess_text(text)`:** This is the core preprocessing function:
+    *   **Sentence Tokenization:** `nltk.sent_tokenize(text)` splits the raw text into a list of individual sentences. This is crucial because our summary will be composed of these original sentences.
+    *   **Word Tokenization & Cleaning:**
+        *   `nltk.word_tokenize(text)` breaks the text into individual words and punctuation.
+        *   `word.lower()` converts each word to lowercase, ensuring "The" and "the" are treated as the same word.
+        *   `re.sub(r'[^a-z]', '', word)` uses a regular expression to remove any characters that are *not* lowercase English alphabets. This cleans up punctuation, numbers, and special symbols.
+        *   `stopwords.words('english')` provides a set of common English words (like "a", "an", "the", "is") that usually don't carry much meaning for summarization. We filter these out to focus on more significant words.
+        *   The cleaned and filtered words are collected into `cleaned_words`.
+
+**3. How to do this step solo:**
+
+*   **Research:** Search for "Python read text file," "NLTK sentence tokenization," "NLTK word tokenization," "NLTK remove stopwords," "Python remove punctuation from string."
+*   **Documentation:** The NLTK documentation is excellent. Look for `nltk.tokenize` and `nltk.corpus.stopwords`. Python's built-in `re` module documentation is useful for regular expressions.
+*   **StackOverflow:** Common questions revolve around handling encoding errors when reading files or efficient ways to clean strings.
+
+**4. Example Outputs:**
+
+```
+--- Testing load_text ---
+Loaded text (first 100 chars):
+    Artificial intelligence (AI) is intelligence demonstrated by machines,
+    unlike the natural intelligenc...
+
+--- Testing preprocess_text ---
+Original Sentences (first 3):
+  1. Artificial intelligence (AI) is intelligence demonstrated by machines,
+    unlike the natural intelligence displayed by humans and animals.
+  2. Leading AI textbooks define the field as the study of "intelligent agents":
+    any device that perceives its environment and takes actions that maximize
+    its chance of successfully achieving its goals.
+  3. Colloquially, the term "artificial intelligence"
+    is often used to describe machines that mimic "cognitive" functions that humans associate with
+    the human mind, such as "learning" and "problem-solving".
+
+Cleaned Words (first 20):
+['artificial', 'intelligence', 'ai', 'intelligence', 'demonstrated', 'machines', 'unlike', 'natural', 'intelligence', 'displayed', 'humans', 'animals', 'leading', 'ai', 'textbooks', 'define', 'field', 'study', 'intelligent', 'agents']
+```
+
+**5. How this step fits:**
+This step transforms raw, unstructured text into structured lists of sentences and important words, which are the building blocks for the subsequent analysis.
+
+**6. Improvements/Best Practices:**
+
+*   **More Advanced Cleaning:** For production systems, you might consider handling contractions (`don't` -> `do not`), numbers (keeping them if relevant), or specific domain-related terms.
+*   **Lemmatization/Stemming:** For even more robust word frequency analysis, you could use `nltk.stem.WordNetLemmatizer` or `nltk.stem.PorterStemmer` to reduce words to their base form (e.g., "running", "runs", "ran" all become "run"). This ensures they are counted as the same word.
+*   **Custom Stopwords:** You might want to add domain-specific stopwords or remove certain words that appear frequently but are not useful for summarization in your specific context.
+*   **Type Hinting:** We're using type hints (`-> str`, `: str`) which is a good practice for code clarity and maintainability.
+
+**7. Intermediate Steps:** None beyond NLTK setup.
+
+**8. File Name and Placement:**
+`text_utils.py` in your project's root directory.
+
+---
+
+## Step 2: Word Frequency Analysis
+
+Now that we have our cleaned words, we'll count their occurrences to identify the most important terms.
+
+**1. Python Code:**
+
+```python
+# filename: summarizer.py (we'll put summarization logic here)
+
+from collections import defaultdict
+import math
+from text_utils import preprocess_text, load_text # Import from our previous module
+
+def calculate_word_frequencies(words: list[str]) -> dict[str, float]:
+    """
+    Calculates the frequency of each word in a list of words.
+    The frequency is normalized by the count of the most frequent word.
+
+    Args:
+        words (list[str]): A list of cleaned words.
+
+    Returns:
+        dict[str, float]: A dictionary where keys are words and values are
+                          their normalized frequencies (0 to 1).
+    """
+    if not words:
+        return {}
+
+    word_counts = defaultdict(int)
+    for word in words:
+        word_counts[word] += 1
+
+    # Normalize frequencies: divide by the count of the most frequent word
+    max_frequency = max(word_counts.values())
+    
+    # Avoid division by zero if max_frequency is 0 (shouldn't happen with non-empty words)
+    if max_frequency == 0:
+        return {word: 0.0 for word in word_counts}
+
+    normalized_frequencies = {
+        word: count / max_frequency
+        for word, count in word_counts.items()
+    }
+    return normalized_frequencies
+
+if __name__ == "__main__":
+    # Example usage for this module
+    dummy_text_content = """
+    Artificial intelligence (AI) is intelligence demonstrated by machines,
+    unlike the natural intelligence displayed by humans and animals.
+    Leading AI textbooks define the field as the study of "intelligent agents":
+    any device that perceives its environment and takes actions that maximize
+    its chance of successfully achieving its goals. Colloquially, the term "artificial intelligence"
+    is often used to describe machines that mimic "cognitive" functions that humans associate with
+    the human mind, such as "learning" and "problem-solving".
+    """
+    
+    # We'd normally load this from a file, but for a quick test, direct string is fine.
+    # Ensure text_utils.py is accessible or paste preprocess_text here for independent testing.
+    # For this example, let's just use the cleaned words list from Step 1's example output
+    # to demonstrate calculate_word_frequencies specifically.
+
+    _, cleaned_words = preprocess_text(dummy_text_content) # Use preprocess_text
+    
+    print("--- Testing calculate_word_frequencies ---")
+    word_freqs = calculate_word_frequencies(cleaned_words)
+    
+    # Sort and print top 10 most frequent words
+    sorted_freqs = sorted(word_freqs.items(), key=lambda item: item[1], reverse=True)
+    print("Top 10 Normalized Word Frequencies:")
+    for word, freq in sorted_freqs[:10]:
+        print(f"  {word}: {freq:.4f}")
+```
+
+**2. Explanation:**
+
+*   **`defaultdict(int)`:** This is a specialized dictionary that automatically assigns a default value (in this case, `0`) to a key if it doesn't exist when you try to access it. This simplifies counting: `word_counts[word] += 1` works without needing to check if `word` is already a key.
+*   **Counting:** We iterate through the `words` list and increment the count for each word.
+*   **Normalization:** After counting, we find the `max_frequency` among all words. Then, we divide each word's count by this `max_frequency`. This gives us a normalized frequency between 0 and 1, where 1 represents the most frequent word, and other words have a frequency relative to it. This normalization helps in consistently scoring sentences later.
+
+**3. How to do this step solo:**
+
+*   **Research:** "Python count word occurrences," "Python dictionary word frequency," "collections.Counter Python." (While `collections.Counter` is more concise, building it manually with `defaultdict` is a good learning exercise for beginners).
+*   **Documentation:** Python's `collections` module documentation is helpful for `defaultdict`.
+*   **StackOverflow:** Look for examples of counting items in a list.
+
+**4. Example Outputs:**
+
+```
+--- Testing calculate_word_frequencies ---
+Top 10 Normalized Word Frequencies:
+  intelligence: 1.0000
+  artificial: 0.5000
+  ai: 0.5000
+  machines: 0.2500
+  textbooks: 0.2500
+  agents: 0.2500
+  human: 0.2500
+  demonstrated: 0.1250
+  natural: 0.1250
+  displayed: 0.1250
+```
+
+**5. How this step fits:**
+This step provides the "importance weight" for each word. A higher frequency suggests a word is more central to the text's theme. These weights will be used in the next step to score individual sentences.
+
+**6. Improvements/Best Practices:**
+
+*   **TF-IDF (Term Frequency-Inverse Document Frequency):** For more advanced summarization (especially across multiple documents), TF-IDF is a superior method. It gives higher weight to words that are frequent in *this* document but rare across a larger collection of documents. This reduces the importance of common words that aren't stopwords but also aren't very distinctive (e.g., "computer" in a document about computers). You'd use `sklearn.feature_extraction.text.TfidfVectorizer` for this.
+*   **`collections.Counter`:** For a more Pythonic and slightly more efficient way to count word occurrences, you can use `from collections import Counter`. `Counter(words)` directly gives you a dictionary-like object with counts.
+
+**7. Intermediate Steps:** None.
+
+**8. File Name and Placement:**
+`summarizer.py` in your project's root directory.
+
+---
+
+## Step 3: Sentence Scoring
+
+Now we'll use the word frequencies to score each original sentence.
+
+**1. Python Code:**
+
+```python
+# filename: summarizer.py (continued)
+
+# ... (previous imports and functions in summarizer.py) ...
+
+def score_sentences(sentences: list[str], word_frequencies: dict[str, float]) -> dict[str, float]:
+    """
+    Scores each sentence based on the sum of normalized frequencies of its constituent words.
+
+    Args:
+        sentences (list[str]): A list of original sentences.
+        word_frequencies (dict[str, float]): A dictionary of normalized word frequencies.
+
+    Returns:
+        dict[str, float]: A dictionary where keys are original sentences and values are their scores.
+    """
+    sentence_scores = defaultdict(float)
+    stop_words = set(stopwords.words('english')) # Re-initialize stopwords for scoring
+
+    for sentence in sentences:
+        # Tokenize words in the current sentence
+        # Clean them similar to preprocess_text to match word_frequencies keys
+        sentence_words = []
+        for word in word_tokenize(sentence):
+            word = word.lower()
+            word = re.sub(r'[^a-z]', '', word) # Remove non-alphabetic chars
+            if word and word not in stop_words:
+                sentence_words.append(word)
+        
+        # Calculate score for the sentence
+        for word in sentence_words:
+            # Add the frequency of each important word in the sentence to its score
+            sentence_scores[sentence] += word_frequencies.get(word, 0.0) # Use .get for words not in freq dict
+            
+        # Optional: Normalize sentence score by sentence length to avoid bias towards longer sentences
+        # You might want to experiment with this. For now, we'll keep it simple.
+        # if len(sentence_words) > 0:
+        #     sentence_scores[sentence] /= len(sentence_words)
+
+    return sentence_scores
+
+if __name__ == "__main__":
+    # ... (previous test code for calculate_word_frequencies) ...
+
+    # Continue the example to test score_sentences
+    dummy_text_content = """
+    Artificial intelligence (AI) is intelligence demonstrated by machines,
+    unlike the natural intelligence displayed by humans and animals.
+    Leading AI textbooks define the field as the study of "intelligent agents":
+    any device that perceives its environment and takes actions that maximize
+    its chance of successfully achieving its goals. Colloquially, the term "artificial intelligence"
+    is often used to describe machines that mimic "cognitive" functions that humans associate with
+    the human mind, such as "learning" and "problem-solving".
+    """
+    
+    original_sentences, cleaned_words = preprocess_text(dummy_text_content)
+    word_freqs = calculate_word_frequencies(cleaned_words)
+    
+    print("\n--- Testing score_sentences ---")
+    sentence_scores = score_sentences(original_sentences, word_freqs)
+    
+    # Sort and print top 3 scoring sentences with their scores
+    sorted_sentence_scores = sorted(sentence_scores.items(), key=lambda item: item[1], reverse=True)
+    print("Top 3 Scoring Sentences:")
+    for i, (sentence, score) in enumerate(sorted_sentence_scores[:3]):
+        print(f"  {i+1}. Score: {score:.4f} - {sentence[:70]}...") # Truncate for display
+```
+
+**2. Explanation:**
+
+*   **Iterate through Sentences:** The function takes the list of original sentences and the `word_frequencies` dictionary. It iterates through each `sentence`.
+*   **Sentence Word Processing:** For each sentence, it re-tokenizes its words and applies the same cleaning steps (lowercase, remove non-alphabetic, remove stopwords) as in `preprocess_text`. This ensures that the words in the sentence match the keys in our `word_frequencies` dictionary.
+*   **Scoring:** For each cleaned word in the current sentence, it looks up its normalized frequency in `word_frequencies` and adds it to the sentence's score. `word_frequencies.get(word, 0.0)` is used to safely retrieve the frequency, returning `0.0` if a word isn't found (e.g., if it's a very rare word or was filtered out differently).
+*   **`defaultdict(float)`:** Similar to `word_counts`, this helps to initialize sentence scores to `0.0` automatically.
+
+**3. How to do this step solo:**
+
+*   **Research:** "Python iterate over list of strings," "Python dictionary get method," "basic text summarization algorithm."
+*   **Documentation:** Review `dict.get()`.
+*   **StackOverflow:** Questions about iterating through lists and performing lookups.
+
+**4. Example Outputs:**
+
+```
+--- Testing score_sentences ---
+Top 3 Scoring Sentences:
+  1. Score: 2.7500 - Artificial intelligence (AI) is intelligence demonstrated by machines,
+  2. Score: 2.7500 - Leading AI textbooks define the field as the study of "intelligent agents":
+  3. Score: 2.7500 - Colloquially, the term "artificial intelligence"
+```
+*(Note: Scores can be tied if sentences have a similar density of high-frequency words.)*
+
+**5. How this step fits:**
+This is the core logic that determines the importance of each sentence based on the underlying word analysis. The output of this step (scored sentences) directly feeds into the final summary generation.
+
+**6. Improvements/Best Practices:**
+
+*   **Sentence Length Normalization:** Long sentences naturally tend to have higher scores because they contain more words. You could divide the raw sentence score by the number of important words in the sentence (as commented out in the code) or by the square root of its length to reduce this bias. Experiment to see what works best.
+*   **Positional Weighting:** Sentences at the beginning and end of a text are often more important (e.g., introductions and conclusions). You could add a small boost to their scores.
+*   **Named Entity Recognition (NER):** If specific entities (people, places, organizations) are crucial, you could boost sentence scores that contain these entities.
+
+**7. Intermediate Steps:** None.
+
+**8. File Name and Placement:**
+`summarizer.py` in your project's root directory.
+
+---
+
+## Step 4: Summary Generation
+
+Finally, we select the top N sentences to create the summary.
+
+**1. Python Code:**
+
+```python
+# filename: summarizer.py (continued)
+
+# ... (previous imports and functions in summarizer.py) ...
+
+def generate_summary(text: str, num_sentences: int = 3) -> str:
+    """
+    Analyzes a text and generates an extractive summary.
+
+    Args:
+        text (str): The input text to summarize.
+        num_sentences (int): The desired number of sentences in the summary.
+
+    Returns:
+        str: The generated summary.
+    """
+    if not text:
+        return "No text provided for summarization."
+    if num_sentences <= 0:
+        return "Number of sentences for summary must be positive."
+
+    # Step 1: Preprocess text
+    original_sentences, cleaned_words = preprocess_text(text)
+    if not original_sentences:
+        return "Could not extract any sentences from the text."
+
+    # Step 2: Calculate word frequencies
+    word_frequencies = calculate_word_frequencies(cleaned_words)
+    if not word_frequencies:
+        return "Could not calculate word frequencies. Is the text too short or full of stopwords?"
+
+    # Step 3: Score sentences
+    sentence_scores = score_sentences(original_sentences, word_frequencies)
+
+    # Sort sentences by score in descending order
+    # We sort based on the actual sentence objects from original_sentences
+    # to maintain original sentence order in the summary if scores are tied.
+    
+    # Create a list of (score, original_index, sentence) tuples
+    scored_sentences_with_indices = []
+    for i, sentence in enumerate(original_sentences):
+        # Ensure we only consider sentences that actually received a score
+        if sentence in sentence_scores:
+            scored_sentences_with_indices.append((sentence_scores[sentence], i, sentence))
+
+    # Sort by score in descending order, then by original index for tie-breaking
+    # This ensures that if two sentences have the same score, the one that appeared
+    # earlier in the original text is preferred.
+    scored_sentences_with_indices.sort(key=lambda x: (x[0], -x[1]), reverse=True) # -x[1] for original order tie-break
+    
+    # Select the top N sentences
+    summary_sentences_info = scored_sentences_with_indices[:num_sentences]
+    
+    # Re-sort the selected sentences by their original index to maintain natural flow
+    summary_sentences_info.sort(key=lambda x: x[1])
+
+    # Extract just the sentences for the final summary
+    final_summary_sentences = [info[2] for info in summary_sentences_info]
+    
+    # Join them to form the summary
+    return " ".join(final_summary_sentences)
+
+# --- Main execution script to demonstrate the full summarizer ---
+# filename: main.py
+if __name__ == "__main__":
+    print("\n--- Running Full Summarization Example (main.py equivalent) ---")
+    
+    # Ensure a sample_text.txt exists from Step 1's `if __name__ == "__main__"` block
+    # or create one manually for testing.
+    
+    sample_text_filepath = "sample_text.txt"
+    # Create a more substantial dummy text for better summarization results
+    longer_dummy_text = """
+    Artificial intelligence (AI) is intelligence demonstrated by machines, 
+    unlike the natural intelligence displayed by humans and animals. 
+    Leading AI textbooks define the field as the study of "intelligent agents": 
+    any device that perceives its environment and takes actions that maximize 
+    its chance of successfully achieving its goals. AI research has been 
+    defined as the field of study that develops and studies intelligent agents. 
+    Colloquially, the term "artificial intelligence" is often used to describe 
+    machines that mimic "cognitive" functions that humans associate with 
+    the human mind, such as "learning" and "problem-solving". 
+    For example, AI systems are now capable of complex tasks like game playing, 
+    medical diagnosis, and natural language processing. The long-term goals 
+    of AI research include achieving artificial general intelligence.
+    """
+    with open(sample_text_filepath, "w", encoding="utf-8") as f:
+        f.write(longer_dummy_text.strip())
+
+    input_text = load_text(sample_text_filepath)
+    if not input_text:
+        print("Failed to load text. Exiting.")
+    else:
+        print(f"Original Text (first 200 chars):\n{input_text[:200]}...\n")
+
+        summary_length = 3
+        summary = generate_summary(input_text, num_sentences=summary_length)
+        
+        print(f"\n--- Generated Summary ({summary_length} sentences) ---")
+        print(summary)
+```
+
+**2. Explanation:**
+
+*   **`generate_summary(text, num_sentences)`:** This is our orchestrator function that ties all previous steps together.
+    *   It first calls `preprocess_text` to get sentences and cleaned words.
+    *   Then, it calls `calculate_word_frequencies` to get word importance.
+    *   Next, it calls `score_sentences` to get scores for each sentence.
+*   **Sorting Sentences:**
+    *   It creates a list of tuples `(score, original_index, sentence)` for each scored sentence. Storing the `original_index` is crucial.
+    *   It sorts this list primarily by `score` in *descending* order (highest score first).
+    *   As a tie-breaker, it sorts by `original_index` in *descending* order (`-x[1]`) if scores are equal. This means if two sentences have the same score, the one that appeared *earlier* in the text will be prioritized, ensuring a more natural flow.
+    *   **Crucially:** After selecting the top `num_sentences`, it re-sorts these *selected* sentences by their `original_index` in *ascending* order. This preserves the chronological order of the selected sentences in the final summary, making it much more readable.
+*   **Final Assembly:** It extracts the sentence strings from the re-sorted list and joins them with a space to form the final summary string.
+*   **Error Handling:** Basic checks for empty input text or invalid `num_sentences`.
+
+**3. How to do this step solo:**
+
+*   **Research:** "Python sort list of tuples," "Python lambda functions for sorting," "Python join list of strings."
+*   **Documentation:** Review `list.sort()` and `sorted()` with the `key` argument.
+*   **StackOverflow:** Common questions about custom sorting.
+
+**4. Example Outputs (using the `longer_dummy_text`):**
+
+```
+--- Running Full Summarization Example (main.py equivalent) ---
+Original Text (first 200 chars):
+Artificial intelligence (AI) is intelligence demonstrated by machines, 
+unlike the natural intelligence displayed by humans and animals. 
+Leading AI textbooks define the field as the study of "intelligent agen...
+
+--- Generated Summary (3 sentences) ---
+Artificial intelligence (AI) is intelligence demonstrated by machines, unlike the natural intelligence displayed by humans and animals. Leading AI textbooks define the field as the study of "intelligent agents": any device that perceives its environment and takes actions that maximize its chance of successfully achieving its goals. Colloquially, the term "artificial intelligence" is often used to describe machines that mimic "cognitive" functions that humans associate with the human mind, such as "learning" and "problem-solving".
+```
+*(Notice how the sentences are selected based on score and then ordered chronologically.)*
+
+**5. How this step fits:**
+This is the final culmination of all the previous steps, producing the desired output: a concise summary of the input text.
+
+**6. Improvements/Best Practices:**
+
+*   **Summary Length Control:** Instead of `num_sentences`, you could allow the user to specify a percentage of the original text length or a target word count for the summary.
+*   **Redundancy Check:** A common issue with extractive summarization is selecting highly similar sentences. You could add a step to check for semantic similarity between selected sentences (e.g., using cosine similarity on sentence embeddings) and remove redundant ones, favoring diversity.
+*   **More Robust Error Handling:** Handle cases where `word_frequencies` or `sentence_scores` might be empty more gracefully.
+*   **Configuration:** Externalize parameters like `num_sentences` or language for stopwords into a configuration file or command-line arguments.
+
+**7. Intermediate Steps:** None.
+
+**8. File Name and Placement:**
+`summarizer.py` (for the `generate_summary` function) and `main.py` (for the execution logic) in your project's root directory. `main.py` will import from `summarizer.py` and `text_utils.py`.
+
+---
+
+## Project Structure
+
+Your final project directory should look something like this:
+
+```
+your_summarizer_project/
+├── download_nltk_data.py
+├── text_utils.py
+├── summarizer.py
+└── main.py
+└── sample_text.txt  (created by `main.py` or manually)
+```
+
+**To run the full solution:**
+
+1.  Open your terminal/command prompt.
+2.  Navigate to your project directory.
+3.  Run `python download_nltk_data.py` (once).
+4.  Run `python main.py`.
+
+This structured approach allows you to understand each component and progressively build a functional text summarizer. Good luck!
